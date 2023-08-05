@@ -14,5 +14,9 @@ browser.get(url)
 checkbox = browser.find_element(By.ID, 'cns_Tab21')
 checkbox.click()
 
-while(True):
-    pass
+# sales = browser.find_elements(By.TAG_NAME, 'span')
+sales = browser.find_element(By.XPATH, '//*[@id="aFVlanREZS"]/table[2]/tbody/tr[1]')
+label = sales.find_elements(By.TAG_NAME, 'span')
+
+for i in label:
+    print(i.text)
