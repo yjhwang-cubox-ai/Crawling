@@ -10,7 +10,7 @@ from time import sleep
 result_consensus = []
 
 def StockCodeList(path):
-    stock_code = pd.read_excel(path, sheet_name = 'Sheet1', converters={'종목코드':str})
+    stock_code = pd.read_excel(path, sheet_name = 'Sheet1', converters={'단축코드':str})
     stock_code = stock_code[['한글 종목명','단축코드']]
     stock_code.columns = ['Stock','Code']
     # print(stock_code)
@@ -63,10 +63,12 @@ def do_html_crawl(urll: str, url: str):
     print(data_array)
     result_consensus.append(data_array)
 
+    return result_consensus
+
 def do_thread_crawl(urls: list):
     count = 0
     thread_list = []
-    with ThreadPoolExecutor(max_workers=16) as executor:
+    with ThreadPoolExecutor(max_workers=40) as executor:
         for url in urls:            
             urll = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=" + url
             thread_list.append(executor.submit(do_html_crawl, urll, url))            
@@ -83,13 +85,16 @@ def search(stock_code):
 
 def main():
     stockcodelist = StockCodeList("cosdaq.xlsx")
+    
     code_list = stockcodelist['Code'].values.tolist()
 
     search(code_list)
 
-    result = pd.DataFrame(data = result_consensus)
-
-    result.to_excel('컨센서스.xlsx')
+    columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2023(E)']
+    result = pd.DataFrame(data = result_consensus, columns=columns)
+    result = result.sort_values(by=['종목명'] ,ascending=True)
+    print(result)
+    result.to_excel('컨센서스.xlsx', index=False)
 
 if __name__ == "__main__":
     main()
