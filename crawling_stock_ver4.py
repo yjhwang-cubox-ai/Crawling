@@ -106,7 +106,7 @@ def main():
     search(code_list)
 
     columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2023(E)']
-    result = pd.DataFrame(data = result_consensus, columns=columns)
+    result = pd.DataFrame(data = result_consensus, columns=columns, index=False)
     result = result.sort_values(by=['종목명'] ,ascending=True)
     print(result)
     result.to_excel('컨센서스.xlsx', index=False)
