@@ -6,8 +6,15 @@ from multiprocessing import Pool
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 from time import sleep
+import time
+import traceback
 
 result_consensus = []
+
+def ErrorLog(error: str):
+    current_time = time.strftime("%Y.%m.%d/%H:%M:%S", time.localtime(time.time()))
+    with open("Log.txt", "a") as f:
+        f.write(f"[{current_time}] - {error}\n")
 
 def StockCodeList(path):
     stock_code = pd.read_excel(path, sheet_name = 'Sheet1', converters={'종목코드':str})
@@ -61,7 +68,9 @@ def do_html_crawl(urll: str, url: str):
                 else:
                     data_array.append(element.text)
     except Exception as error:
-        print(error)
+        print(error)        
+        ErrorLog(str(urll))
+        ErrorLog(str(error))
         
     
     browser.quit()
@@ -74,7 +83,7 @@ def do_html_crawl(urll: str, url: str):
 def do_thread_crawl(urls: list):
     count = 0
     thread_list = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=16) as executor:
         for url in urls:            
             urll = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=" + url
             thread_list.append(executor.submit(do_html_crawl, urll, url))            
