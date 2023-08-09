@@ -36,29 +36,35 @@ def do_html_crawl(urll: str, url: str):
     data_array.append(url)
 
     lists = browser.find_elements(By.CLASS_NAME, 'center')
-
-    for list in lists:
-        if list.text == "2022(A)":
-            parent = list.find_element(By.XPATH, "..")
-            element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[3]/td[6]')
-            if element.text == '':
-                data_array.append(0)
-            else:
-                data_array.append(element.text)
-        elif list.text == "2023(E)":
-            parent = list.find_element(By.XPATH, "..")
-            element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[4]/td[6]')
-            if element.text == '':
-                data_array.append(0)
-            else:
-                data_array.append(element.text)
-        elif list.text == "2024(E)":
-            parent = list.find_element(By.XPATH, "..")
-            element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[5]/td[6]')  
-            if element.text == '':
-                data_array.append(0)
-            else:
-                data_array.append(element.text)        
+    
+    try:
+        for list in lists:
+            if list.text == "2022(A)":
+                parent = list.find_element(By.XPATH, "..")
+                element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[3]/td[6]')
+                if element.text == '':
+                    data_array.append(0)
+                else:
+                    data_array.append(element.text)
+            elif list.text == "2023(E)":
+                parent = list.find_element(By.XPATH, "..")
+                element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[4]/td[6]')
+                if element.text == '':
+                    data_array.append(0)
+                else:
+                    data_array.append(element.text)
+            elif list.text == "2024(E)":
+                parent = list.find_element(By.XPATH, "..")
+                element = parent.find_element(By.XPATH, '//*[@id="cTB25"]/tbody/tr[5]/td[6]')  
+                if element.text == '':
+                    data_array.append(0)
+                else:
+                    data_array.append(element.text)
+    except Exception as error:
+        print(error)
+        
+    
+    browser.quit()
     
     print(data_array)
     result_consensus.append(data_array)
@@ -68,7 +74,7 @@ def do_html_crawl(urll: str, url: str):
 def do_thread_crawl(urls: list):
     count = 0
     thread_list = []
-    with ThreadPoolExecutor(max_workers=40) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         for url in urls:            
             urll = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=" + url
             thread_list.append(executor.submit(do_html_crawl, urll, url))            
