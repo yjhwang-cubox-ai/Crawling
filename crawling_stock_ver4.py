@@ -68,7 +68,8 @@ def do_html_crawl(urll: str, url: str):
                 else:
                     data_array.append(element.text)
     except Exception as error:
-        print(error)        
+        print(error)
+        ErrorLog(str(name.text))       
         ErrorLog(str(urll))
         ErrorLog(str(error))
         
