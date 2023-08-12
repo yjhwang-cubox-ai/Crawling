@@ -36,7 +36,7 @@ def do_html_crawl(urll: str, url: str):
     browser = webdriver.Chrome(options=options)
     browser.get(urll)
 
-    sleep(1)
+    sleep(3)
 
     name = browser.find_element(By.CLASS_NAME, 'name')
     data_array.append(name.text)
@@ -106,8 +106,8 @@ def main():
 
     search(code_list)
 
-    columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2023(E)']
-    result = pd.DataFrame(data = result_consensus, columns=columns, index=False)
+    columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2024(E)','예외']
+    result = pd.DataFrame(data = result_consensus, columns=columns)
     result = result.sort_values(by=['종목명'] ,ascending=True)
     print(result)
     result.to_excel('컨센서스.xlsx', index=False)
