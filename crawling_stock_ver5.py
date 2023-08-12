@@ -122,8 +122,8 @@ def do_thread_crawl(urls: list):
 
 def search(stock_code):
     
-    # code = stock_code
-    code = ['265520', '456440', '442770', '426550', '439730', '456490']
+    code = stock_code
+    # code = ['265520', '456440', '442770', '426550', '439730', '456490']
     do_thread_crawl(code)
 
 def main():
