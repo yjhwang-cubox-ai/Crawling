@@ -74,34 +74,32 @@ def do_html_crawl(urll: str, url: str):
                     data_array.append(0)
                 else:
                     data_array.append(element.text)
+        
+        # 일부 종목에서 컨센서스가 4개 크롤링 되는 문제 발생 -> 따로 표시
+        if len(data_array) > 5:
+            data_array = [name.text, url, '', '', '']
+        elif len(data_array) == 4:
+            data_array.append('')
+        
+        # 현재 PER 와 주가 추가
+        data_array.append(data_array_per[0])
+        data_array.append(data_array_price[0])
+        print(data_array)
+
+        if (data_array[3] == 0 or data_array[4] == 0 or data_array[5] == 'N/A'):
+            price_23 = ''
+            price_24 = ''
+            data_array.append(price_23)
+            data_array.append(price_24)
+        else:
+            price_23 = float(data_array[3].replace(',', '')) * float(data_array[5])
+            price_24 = float(data_array[4].replace(',', '')) * float(data_array[5])
+            data_array.append(int(price_23))
+            data_array.append(int(price_24)) 
 
     except Exception as error:
-        print(error)
         ErrorLog(str(name.text))       
-        ErrorLog(str(urll))
-        ErrorLog(str(error))
-    
-    # 일부 종목에서 컨센서스가 4개 크롤링 되는 문제 발생 -> 따로 표시
-    if len(data_array) > 5:
-        data_array = [name.text, url, '', '', '']
-    elif len(data_array) == 4:
-        data_array.append('')
-
-    # 현재 PER 와 주가 추가
-    data_array.append(data_array_per[0])
-    data_array.append(data_array_price[0])
-    print(data_array)
-
-    if (data_array[3] == 0 or data_array[4] == 0 or data_array[5] == 'N/A'):
-        price_23 = ''
-        price_24 = ''
-        data_array.append(price_23)
-        data_array.append(price_24)
-    else:
-        price_23 = float(data_array[3].replace(',', '')) * float(data_array[5])
-        price_24 = float(data_array[4].replace(',', '')) * float(data_array[5])
-        data_array.append(int(price_23))
-        data_array.append(int(price_24))   
+        ErrorLog(str(urll))     
     
 
     result_consensus.append(data_array)
@@ -124,19 +122,18 @@ def do_thread_crawl(urls: list):
 
 def search(stock_code):
     
-    code = stock_code
-    # code = ['265520']
+    # code = stock_code
+    code = ['265520', '456440', '442770', '426550', '439730', '456490']
     do_thread_crawl(code)
 
 def main():
-    stockcodelist = StockCodeList("cosdaq_test.xlsx")
+    stockcodelist = StockCodeList("cosdaq.xlsx")
     
     code_list = stockcodelist['Code'].values.tolist()
 
     search(code_list)
 
     columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2024(E)', 'PER(2022)', '현재가', '2023 예상가', '2024 예상가']
-    # columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2024(E)', 'PER(2022)', '현재가']
     result = pd.DataFrame(data = result_consensus, columns=columns)
     result = result.sort_values(by=['종목명'] ,ascending=True)
     print(result)
