@@ -36,6 +36,7 @@ def do_html_crawl(urll: str, url: str):
     # 창 숨기는 옵션 추가
     options.add_argument("headless")
     browser = webdriver.Chrome(options=options)
+    # browser = webdriver.Chrome()
     browser.get(urll)
 
     sleep(3)
@@ -98,8 +99,9 @@ def do_html_crawl(urll: str, url: str):
             data_array.append(int(price_24)) 
 
     except Exception as error:
-        ErrorLog(str(name.text))       
-        ErrorLog(str(urll))     
+        ErrorLog(str(name.text))
+        ErrorLog(str(urll))
+        # ErrorLog(str(error))
     
 
     result_consensus.append(data_array)
@@ -127,17 +129,19 @@ def search(stock_code):
     do_thread_crawl(code)
 
 def main():
-    stockcodelist = StockCodeList("cosdaq.xlsx")
+    stockcodelist = StockCodeList("cosdaq_total.xlsx")
     
     code_list = stockcodelist['Code'].values.tolist()
+    try:
+        search(code_list)
 
-    search(code_list)
-
-    columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2024(E)', 'PER(2022)', '현재가', '2023 예상가', '2024 예상가']
-    result = pd.DataFrame(data = result_consensus, columns=columns)
-    result = result.sort_values(by=['종목명'] ,ascending=True)
-    print(result)
-    result.to_excel('컨센서스_.xlsx', index=False)
+        columns = ['종목명', '종목코드', '2022(A)', '2023(E)', '2024(E)', 'PER(2022)', '현재가', '2023 예상가', '2024 예상가']
+        result = pd.DataFrame(data = result_consensus, columns=columns)
+        result = result.sort_values(by=['종목명'] ,ascending=True)
+        print(result)
+        result.to_excel('컨센서스_.xlsx', index=False)
+    except Exception as error:
+        ErrorLog(str(error))
 
 if __name__ == "__main__":
     main()
