@@ -1,16 +1,11 @@
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import os
-from multiprocessing import Pool
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
 from time import sleep
 import time
-import traceback
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, WebDriverException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
 import logging
 import pandas as pd
 import time
@@ -114,6 +109,9 @@ def do_html_crawl(url: str, stock_code: str):
     if pd.isna(operating_profit_2024) or pd.isna(operating_profit_2025) or pd.isna(operating_profit_2026):
         return  # 함수 종료
     
+    if pd.isna(per_2024):
+        return  # 함수 종료
+    
     stock_name = stock.get_market_ticker_name(stock_code)
     market_price = get_market_price(stock_code)
     
@@ -141,7 +139,7 @@ def do_html_crawl(url: str, stock_code: str):
 def main():
     # 테스트용 종목코드
     stock_list = ['068270', '000660', '035420', '365330', '033320']
-    # stock_list = ['365330']
+    # stock_list = ['068270', '000660', '035420']
     
     # 전종목 코드
     # KOSPI 시장의 종목 리스트 가져오기
