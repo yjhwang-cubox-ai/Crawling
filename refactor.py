@@ -1,10 +1,9 @@
 import pandas as pd
 import logging
 import time
-# import asyncio
-# import aiohttp
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from typing import List, Optional, Literal
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -123,7 +122,6 @@ class StockDataCrawler:
                 # 컨센서스 데이터 확인
                 if any(pd.isna(result["operating_profit"][year]) for year in [2024, 2025, 2026]):
                     return None
-                
 
                 # 현재가 및 종목명 추출
                 stock_name = stock.get_market_ticker_name(stock_code)
@@ -171,12 +169,20 @@ class StockDataCrawler:
         
         return data
 
-    def crawl_stocks(self, stock_list=None, max_workers=10):
+    def crawl_stocks(
+        self, 
+        market: Optional[Literal['KOSPI', 'KOSDAQ', 'ALL']] = 'ALL', 
+        stock_list: Optional[List[str]] = None, 
+        custom_stocks: Optional[List[str]] = None,  # 추가된 파라미터
+        max_workers: int = 10
+    ):
         """
         주식 목록 크롤링
         
         Args:
+            market (str): 크롤링할 시장 ('KOSPI', 'KOSDAQ', 'ALL')
             stock_list (list, optional): 크롤링할 주식 코드 목록
+            custom_stocks (list, optional): 사용자 지정 종목코드 리스트
             max_workers (int, optional): 동시 크롤링 스레드 수
         
         Returns:
@@ -184,16 +190,28 @@ class StockDataCrawler:
         """
         start_time = time.time()
 
-        # 주식 리스트 설정 (기본: KOSPI + KOSDAQ)
-        if stock_list is None:
-            stock_list = stock.get_market_ticker_list(market="KOSPI") + \
-                         stock.get_market_ticker_list(market="KOSDAQ")
+        # 주식 리스트 설정 우선순위
+        # 1. custom_stocks (사용자 지정 종목)
+        # 2. stock_list (기존 파라미터)
+        # 3. market 기반 자동 선택
+        if custom_stocks is not None:
+            stock_list = custom_stocks
+        elif stock_list is None:
+            if market == 'KOSPI':
+                stock_list = stock.get_market_ticker_list(market="KOSPI")
+            elif market == 'KOSDAQ':
+                stock_list = stock.get_market_ticker_list(market="KOSDAQ")
+            else:  # ALL
+                stock_list = (
+                    stock.get_market_ticker_list(market="KOSPI") + 
+                    stock.get_market_ticker_list(market="KOSDAQ")
+                )
 
-        # 병렬 크롤링
+        # 병렬 크롤링 (이하 기존 코드와 동일)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             stock_data = list(filter(None, executor.map(self._crawl_stock_data, stock_list)))
 
-        # DataFrame 생성 및 저장
+        # DataFrame 생성
         df = pd.DataFrame(stock_data)
         
         # 열 순서 지정
@@ -207,7 +225,15 @@ class StockDataCrawler:
 
         # CSV 저장
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_file_name = f"financial_data_{current_time}.csv"
+        
+        # 파일명 생성 로직 개선
+        if custom_stocks:
+            market_suffix = "CUSTOM"
+        else:
+            market_suffix = market if market != 'ALL' else 'TOTAL'
+        
+        csv_file_name = f"financial_data_{market_suffix}_{current_time}.csv"
+        
         df.to_csv(csv_file_name, index=False, encoding='utf-8-sig')
 
         end_time = time.time()
@@ -218,15 +244,17 @@ class StockDataCrawler:
 def main():
     crawler = StockDataCrawler()
     
-    # 테스트용 종목 리스트 (필요에 따라 수정)
-    test_stocks = ['068270', '000660', '035420', '365330', '033320']
+    # 사용자 지정 종목코드로 크롤링
+    custom_stocks = ['005930', '000660', '035420']  # 예시 종목코드
     
-    # 전체 시장 데이터 크롤링
     start = time.time()
-    result_df = crawler.crawl_stocks(stock_list=test_stocks)
+    custom_df = crawler.crawl_stocks(custom_stocks=custom_stocks)
     end = time.time()
     print(f"작업 실행 시간: {end - start:.2f}초")
-    print(result_df)
+    
+    # 기존 시장별 크롤링 방식도 유지
+    kospi_df = crawler.crawl_stocks(market='KOSPI')
+    kosdaq_df = crawler.crawl_stocks(market='KOSDAQ')
 
 if __name__ == "__main__":
     main()
