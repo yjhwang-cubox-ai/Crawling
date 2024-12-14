@@ -13,6 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, WebDriverException, NoSuchElementException
 import logging
 import pandas as pd
+import time
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -41,20 +42,21 @@ def click_element_by_xpath(driver, xpath, element_name, wait_time=10):
     except Exception as e:
         logger.error(f"{element_name} 클릭 중 오류 발생: {e}")
 
-def do_html_crawl(url: str):
+def do_html_crawl(url: str, stock_code: str):
+    url = url + stock_code
     options = webdriver.ChromeOptions()
+    options.add_argument("headless")
     browser = webdriver.Chrome(options=options)
-    # browser = webdriver.Chrome()
     browser.get(url)
 
-    sleep(3)
-
+    sleep(1)
+    
     click_element_by_xpath(
         browser,
         "/html/body/div/form/div[1]/div/div[2]/div[3]/div/div/table[2]/tbody/tr/td[3]",
         "연간"
     )
-    
+
     # 'class'와 'summary' 속성을 조합하여 특정 테이블 선택
     table = browser.find_element(By.XPATH, '//table[@class="gHead01 all-width" and @summary="주요재무정보를 제공합니다."]')
     html_content = table.get_attribute('outerHTML')
@@ -63,28 +65,26 @@ def do_html_crawl(url: str):
     import pandas as pd
     df = pd.read_html(html_content)[0]
 
+    # DataFrame을 CSV 파일로 저장
+    csv_file_name = f"{stock_code}_financial_data.csv"
+    df.to_csv(csv_file_name, index=False, encoding='utf-8-sig')
+    print(f"{csv_file_name}로 저장 완료")
+
     print(df)
-
-    # element = browser.find_element(By.CSS_SELECTOR, '#RVArcVR1a2 > table:nth-child(2) > tbody > tr:nth-child(2) > td:nth-child(7) > span')
-    # current_price = element.text
-
-    print("fighting")
-
-
-#RVArcVR1a2 > table:nth-child(2) > tbody > tr:nth-child(2) > td:nth-child(7) > span
 
 
 def main():
-    stock_list = ['068270', '000660']
+    # stock_list = ['068270', '000660', '035420', '365330', '033320']
+    stock_list = ['068270']
     url = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd="
 
+    start = time.time()
     for stock_code in stock_list:
-        result = do_html_crawl(url+stock_code)
+        result = do_html_crawl(url, stock_code)
         print(result)
 
-    
-
-
+    end = time.time()
+    print(f"작업 실행 시간: {end - start:.2f}초")
 
 if __name__ == "__main__":
     main()
