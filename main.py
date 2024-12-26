@@ -65,10 +65,20 @@ class StockDataCrawler:
         """
         try:
             today = datetime.now()
-            if today.weekday() in [5, 6]:  # 주말 처리
-                target_date = today - timedelta(days=1 if today.weekday() == 5 else 2)
+            
+            # 장 시작 전(자정~오후4시)인 경우 전날 종가 조회
+            if today.hour < 16:
+                target_date = today - timedelta(days=1)
+                # 전날이 주말인 경우 처리
+                if target_date.weekday() == 6:  # 일요일
+                    target_date -= timedelta(days=2)
+                elif target_date.weekday() == 5:  # 토요일 
+                    target_date -= timedelta(days=1)
             else:
-                target_date = today
+                if today.weekday() in [5, 6]:  # 주말 처리
+                    target_date = today - timedelta(days=1 if today.weekday() == 5 else 2)
+                else:
+                    target_date = today
 
             formatted_date = target_date.strftime("%Y%m%d")
             market_price = stock.get_market_ohlcv_by_date(formatted_date, formatted_date, stock_code).iloc[-1]['종가']
@@ -249,13 +259,13 @@ class StockDataCrawler:
 def main():
     crawler = StockDataCrawler()
     
-    # 사용자 지정 종목코드로 크롤링
-    custom_stocks = ['005930', '000660', '035420']  # 예시 종목코드
+    # # 사용자 지정 종목코드로 크롤링
+    # custom_stocks = ['005930', '000660', '035420']  # 예시 종목코드
     
-    start = time.time()
-    custom_df = crawler.crawl_stocks(custom_stocks=custom_stocks)
-    end = time.time()
-    print(f"작업 실행 시간: {end - start:.2f}초")
+    # start = time.time()
+    # custom_df = crawler.crawl_stocks(custom_stocks=custom_stocks)
+    # end = time.time()
+    # print(f"작업 실행 시간: {end - start:.2f}초")
     
     # 기존 시장별 크롤링 방식도 유지
     kospi_df = crawler.crawl_stocks(market='KOSPI')
