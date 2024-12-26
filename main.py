@@ -1,7 +1,8 @@
 import pandas as pd
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import List, Optional, Literal
 from io import StringIO
@@ -222,9 +223,26 @@ class StockDataCrawler:
                     stock.get_market_ticker_list(market="KOSDAQ")
                 )
 
-        # 병렬 크롤링
+        # Progress bar를 위한 total 계산
+        total_stocks = len(stock_list)
+        
+        # 결과를 저장할 리스트
+        stock_data = []
+        
+        # ThreadPoolExecutor와 tqdm을 함께 사용
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            stock_data = list(filter(None, executor.map(self._crawl_stock_data, stock_list)))
+            futures = [executor.submit(self._crawl_stock_data, code) for code in stock_list]
+            
+            # tqdm으로 진행상황 표시
+            for future in tqdm(
+                as_completed(futures), 
+                total=total_stocks,
+                desc="크롤링 진행률",
+                unit="종목"
+            ):
+                result = future.result()
+                if result is not None:
+                    stock_data.append(result)
 
         # DataFrame 생성
         df = pd.DataFrame(stock_data)
