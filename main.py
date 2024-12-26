@@ -1,185 +1,265 @@
 import pandas as pd
+import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+from typing import List, Optional, Literal
+from io import StringIO
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from time import sleep
-import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, NoSuchElementException
-import logging
-import pandas as pd
-import time
-from datetime import datetime, timedelta
+from selenium.common.exceptions import (
+    TimeoutException, 
+    ElementClickInterceptedException, 
+    NoSuchElementException
+)
+
 from pykrx import stock
 
-### 용어
-# 종목명: ticker_name
-# 종목코드: ticker symbol    
-# 현재가: market_price
+class StockDataCrawler:
+    def __init__(self):
+        """
+        주식 데이터 크롤러 초기화
+        
+        Args:
+            base_url (str): 크롤링할 기본 URL
+        """
+        self.base_url = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd="
+        self.logger = self._setup_logger()
+        self.webdriver_options = self._configure_webdriver_options()
 
-# 로깅 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def click_element_by_xpath(driver, xpath, element_name, wait_time=10):
-    try:
-        element = WebDriverWait(driver, wait_time).until(
-            EC.presence_of_element_located((By.XPATH, xpath))
+    @staticmethod
+    def _setup_logger():
+        """로깅 설정"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s: %(message)s'
         )
-        # 요소가 뷰포트에 보일 때까지 스크롤
-        driver.execute_script("arguments[0].scrollIntoView(true);", element)
-        # 요소가 클릭 가능할 때까지 대기
-        element = WebDriverWait(driver, wait_time).until(
-            EC.element_to_be_clickable((By.XPATH, xpath))
-        )
-        element.click()
-        logger.info(f"{element_name} 클릭 완료")
-        time.sleep(2)  # 클릭 후 잠시 대기
-    except TimeoutException:
-        logger.error(f"{element_name} 요소를 찾는 데 시간이 초과되었습니다.")
-    except ElementClickInterceptedException:
-        logger.error(f"{element_name} 요소를 클릭할 수 없습니다. 다른 요소에 가려져 있을 수 있습니다.")
-    except NoSuchElementException:
-        logger.error(f"{element_name} 요소를 찾을 수 없습니다.")
-    except Exception as e:
-        logger.error(f"{element_name} 클릭 중 오류 발생: {e}")
+        return logging.getLogger(__name__)
 
-def get_market_price(stock_code):
-    today = datetime.now()
-    if today.weekday() == 5:  # 토요일
-        target_date = today - timedelta(days=1)
-    elif today.weekday() == 6:  # 일요일
-        target_date = today - timedelta(days=2)
-    else:
-        target_date = today
+    def _configure_webdriver_options(self):
+        """
+        Selenium WebDriver 옵션 설정
+        
+        Returns:
+            webdriver.ChromeOptions: 구성된 WebDriver 옵션
+        """
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        return options
 
-    formatted_date = target_date.strftime("%Y%m%d")
-  
-    market_price = stock.get_market_ohlcv_by_date(formatted_date, formatted_date, stock_code).iloc[-1]['종가']
+    def _get_market_price(self, stock_code):
+        """
+        특정 주식의 현재 시장 가격 조회
+        
+        Args:
+            stock_code (str): 주식 코드
+        
+        Returns:
+            float: 현재 주식 가격
+        """
+        try:
+            today = datetime.now()
+            if today.weekday() in [5, 6]:  # 주말 처리
+                target_date = today - timedelta(days=1 if today.weekday() == 5 else 2)
+            else:
+                target_date = today
 
-    return market_price
+            formatted_date = target_date.strftime("%Y%m%d")
+            market_price = stock.get_market_ohlcv_by_date(formatted_date, formatted_date, stock_code).iloc[-1]['종가']
+            
+            return market_price
+        except Exception as e:
+            self.logger.error(f"시장 가격 조회 중 오류: {e}")
+            return None
 
-def do_html_crawl(url: str, stock_code: str):
-    url = url + stock_code
-    options = webdriver.ChromeOptions()
-    options.add_argument("headless")
-    browser = webdriver.Chrome(options=options)
-    browser.get(url)
+    def _crawl_stock_data(self, stock_code):
+        """
+        개별 주식의 재무 데이터 크롤링
+        
+        Args:
+            stock_code (str): 주식 코드
+        
+        Returns:
+            dict or None: 크롤링된 주식 데이터
+        """
+        url = self.base_url + stock_code
+        
+        try:
+            with webdriver.Chrome(options=self.webdriver_options) as browser:
+                browser.get(url)
+                time.sleep(1)
 
-    sleep(1)
-    
-    click_element_by_xpath(
-        browser,
-        "/html/body/div/form/div[1]/div/div[2]/div[3]/div/div/table[2]/tbody/tr/td[3]",
-        "연간"
-    )
+                # 연간 탭 클릭
+                annual_tab = WebDriverWait(browser, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "/html/body/div/form/div[1]/div/div[2]/div[3]/div/div/table[2]/tbody/tr/td[3]"))
+                )
+                annual_tab.click()
+                time.sleep(1)
 
-    # 'class'와 'summary' 속성을 조합하여 특정 테이블 선택
-    table = browser.find_element(By.XPATH, '//table[@class="gHead01 all-width" and @summary="주요재무정보를 제공합니다."]')
-    html_content = table.get_attribute('outerHTML')
-    
-    # HTML에서 DataFrame 읽기
-    df = pd.read_html(html_content)[0]
+                # 재무 테이블 선택
+                table = browser.find_element(By.XPATH, '//table[@class="gHead01 all-width" and @summary="주요재무정보를 제공합니다."]')
+                html_content = table.get_attribute('outerHTML')
+                
+                # HTML 문자열을 StringIO로 래핑
+                html_io = StringIO(html_content)
 
-    # 열 이름 매핑
-    columns_map = {
-        "operating_profit": 1,  # 영업이익
-        "eps": 25,             # 주당순이익 (EPS)
-        "per": 26              # PER
-    }
+                # StringIO 객체를 read_html에 전달
+                df = pd.read_html(html_io)[0]
 
-    # 필요한 데이터 추출
-    result = {
-        metric: {year: df[df.columns[-(3 - i)]][index] for i, year in enumerate([2024, 2025, 2026])}
-        for metric, index in columns_map.items()
-    }
+                # 재무 지표 추출
+                columns_map = {
+                    "operating_profit": 1,
+                    "eps": 25,
+                    "per": 26
+                }
 
-    # 결과 변수 예시
-    operating_profit_2024 = result["operating_profit"][2024]
-    operating_profit_2025 = result["operating_profit"][2025]
-    operating_profit_2026 = result["operating_profit"][2026]
+                result = {
+                    metric: {year: df[df.columns[-(3 - i)]][index] for i, year in enumerate([2024, 2025, 2026])}
+                    for metric, index in columns_map.items()
+                }
 
-    eps_2024 = result["eps"][2024]
-    eps_2025 = result["eps"][2025]
-    eps_2026 = result["eps"][2026]
+                # 컨센서스 데이터 확인
+                if any(pd.isna(result["operating_profit"][year]) for year in [2024, 2025, 2026]):
+                    return None
 
-    per_2024 = result["per"][2024]
-    
-    #컨센서스가 없는 종목 패스
-    if pd.isna(operating_profit_2024) or pd.isna(operating_profit_2025) or pd.isna(operating_profit_2026):
-        return  # 함수 종료
-    
-    if pd.isna(per_2024):
-        return  # 함수 종료
-    
-    stock_name = stock.get_market_ticker_name(stock_code)
-    market_price = get_market_price(stock_code)
-    
-    data = {
-        "종목코드": str(stock_code),  # 종목코드
-        "종목명": stock_name,  # 종목명
-        "현재가": str(int(market_price)),  # 현재가
-        "영업이익(2024)": str(int(operating_profit_2024)), # 영업이익(2024)
-        "영업이익(2025)": str(int(operating_profit_2025)), # 영업이익(2025)
-        "영업이익(2026)": str(int(operating_profit_2026)), # 영업이익(2026)
-        "EPS(2024)": str(int(eps_2024)),  # EPS(2024)
-        "EPS(2025)": str(int(eps_2024)),  # EPS(2025)
-        "EPS(2026)": str(int(eps_2024)),  # EPS(2026)
-        "PER(2024)": str(int(eps_2024)),  # PER(2024)
-        "PER(2025)": str(int(eps_2025)),  # PER(2025)
-        "PER(2026)": str(int(eps_2026)),  # PER(2026)
-        "목표가(2024)": str(int(eps_2024*per_2024)),  # 목표가(2024)
-        "목표가(2025)": str(int(eps_2025*per_2024)),  # 목표가(2025) -> per 는 현재 수치를 기준으로 한다
-        "목표가(2026)": str(int(eps_2026*per_2024))   # 목표가(2026) -> per 는 현재 수치를 기준으로 한다
-    }
-    
-    return data
+                # 현재가 및 종목명 추출
+                stock_name = stock.get_market_ticker_name(stock_code)
+                market_price = self._get_market_price(stock_code)
 
+                return self._format_stock_data(
+                    stock_code, stock_name, market_price, result
+                )
+
+        except Exception as e:
+            self.logger.error(f"주식 코드 {stock_code} 크롤링 중 오류: {e}")
+            return None
+
+    @staticmethod
+    def _format_stock_data(stock_code, stock_name, market_price, result):
+        """
+        크롤링된 데이터 포맷팅
+        
+        Args:
+            stock_code (str): 주식 코드
+            stock_name (str): 주식 이름
+            market_price (float): 현재 시장 가격
+            result (dict): 크롤링된 재무 지표
+        
+        Returns:
+            dict: 포맷팅된 주식 데이터
+        """
+        per_2024 = result["per"][2024]
+        
+        data = {
+            "종목코드": str(stock_code),
+            "종목명": stock_name,
+            "현재가": str(int(market_price)),
+            "영업이익(2024)": str(int(result["operating_profit"][2024])),
+            "영업이익(2025)": str(int(result["operating_profit"][2025])),
+            "영업이익(2026)": str(int(result["operating_profit"][2026])),
+            "EPS(2024)": str(int(result["eps"][2024])),
+            "EPS(2025)": str(int(result["eps"][2025])),
+            "EPS(2026)": str(int(result["eps"][2026])),
+            "PER(2024)": str(per_2024),
+            "목표가(2024)": str(int(result["eps"][2024] * per_2024)),
+            "목표가(2025)": str(int(result["eps"][2025] * per_2024)),
+            "목표가(2026)": str(int(result["eps"][2026] * per_2024))
+        }
+        
+        return data
+
+    def crawl_stocks(
+        self, 
+        market: Optional[Literal['KOSPI', 'KOSDAQ', 'ALL']] = 'ALL', 
+        stock_list: Optional[List[str]] = None, 
+        custom_stocks: Optional[List[str]] = None,  # 추가된 파라미터
+        max_workers: int = 10
+    ):
+        """
+        주식 목록 크롤링
+        
+        Args:
+            market (str): 크롤링할 시장 ('KOSPI', 'KOSDAQ', 'ALL')
+            stock_list (list, optional): 크롤링할 주식 코드 목록
+            custom_stocks (list, optional): 사용자 지정 종목코드 리스트
+            max_workers (int, optional): 동시 크롤링 스레드 수
+        
+        Returns:
+            pandas.DataFrame: 크롤링된 주식 데이터
+        """
+        start_time = time.time()
+
+        # 주식 리스트 설정 우선순위
+        # 1. custom_stocks (사용자 지정 종목)
+        # 2. stock_list (기존 파라미터)
+        # 3. market 기반 자동 선택
+        if custom_stocks is not None:
+            stock_list = custom_stocks
+        elif stock_list is None:
+            if market == 'KOSPI':
+                stock_list = stock.get_market_ticker_list(market="KOSPI")
+            elif market == 'KOSDAQ':
+                stock_list = stock.get_market_ticker_list(market="KOSDAQ")
+            else:  # ALL
+                stock_list = (
+                    stock.get_market_ticker_list(market="KOSPI") + 
+                    stock.get_market_ticker_list(market="KOSDAQ")
+                )
+
+        # 병렬 크롤링
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            stock_data = list(filter(None, executor.map(self._crawl_stock_data, stock_list)))
+
+        # DataFrame 생성
+        df = pd.DataFrame(stock_data)
+        
+        # 열 순서 지정
+        column_order = [
+            "종목코드", "종목명", "현재가", 
+            "영업이익(2024)", "영업이익(2025)", "영업이익(2026)", 
+            "EPS(2024)", "EPS(2025)", "EPS(2026)", 
+            "PER(2024)", "목표가(2024)", "목표가(2025)", "목표가(2026)"
+        ]
+        df = df[column_order]
+
+        # CSV 저장
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 파일명 생성 로직 개선
+        if custom_stocks:
+            market_suffix = "CUSTOM"
+        else:
+            market_suffix = market if market != 'ALL' else 'TOTAL'
+        
+        csv_file_name = f"financial_data_{market_suffix}_{current_time}.csv"
+        
+        df.to_csv(csv_file_name, index=False, encoding='utf-8-sig')
+
+        end_time = time.time()
+        self.logger.info(f"크롤링 완료. 총 소요 시간: {end_time - start_time:.2f}초")
+        
+        return df
 
 def main():
-    # 테스트용 종목코드
-    stock_list = ['068270', '000660', '035420', '365330', '033320']
-    # stock_list = ['068270', '000660', '035420']
+    crawler = StockDataCrawler()
     
-    # 전종목 코드
-    # KOSPI 시장의 종목 리스트 가져오기
-    kospi_list = stock.get_market_ticker_list(market="KOSPI")
-    kosdaq_list = stock.get_market_ticker_list(market="KOSDAQ")
+    # 사용자 지정 종목코드로 크롤링
+    custom_stocks = ['005930', '000660', '035420']  # 예시 종목코드
     
-    url = "https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd="
-
     start = time.time()
-    total_data = []
-    for stock_code in stock_list:
-        data = do_html_crawl(url, stock_code)
-        if data is not None:
-            total_data.append(data)
-
+    custom_df = crawler.crawl_stocks(custom_stocks=custom_stocks)
     end = time.time()
     print(f"작업 실행 시간: {end - start:.2f}초")
     
-    # 데이터를 csv 파일로 저장
-    # DataFrame 생성
-    df = pd.DataFrame(total_data)
-
-    # 열 순서 지정
-    column_order = [
-        "종목코드", "종목명", "현재가", 
-        "영업이익(2024)", "영업이익(2025)", "영업이익(2026)", 
-        "EPS(2024)", "EPS(2025)", "EPS(2026)", 
-        "PER(2024)", "PER(2025)", "PER(2026)", 
-        "목표가(2024)", "목표가(2025)", "목표가(2026)"
-    ]
-
-    # DataFrame을 지정된 열 순서로 정렬
-    df = df[column_order]
-
-    # CSV 파일로 저장
-    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_file_name = f"financial_data_{current_time}.csv"
-    df.to_csv(csv_file_name, index=False, encoding='utf-8-sig')
-    print(f"{csv_file_name}로 저장 완료")
-    
+    # 기존 시장별 크롤링 방식도 유지
+    kospi_df = crawler.crawl_stocks(market='KOSPI')
+    kosdaq_df = crawler.crawl_stocks(market='KOSDAQ')
 
 if __name__ == "__main__":
     main()
